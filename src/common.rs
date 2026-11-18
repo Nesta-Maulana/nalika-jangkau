@@ -2539,6 +2539,12 @@ fn load_nalika_client() {
         log::error!("Failed to parse Nalika client config");
         return;
     };
+    #[cfg(windows)]
+    let data = {
+        let mut data = data;
+        data.insert("app-name".to_owned(), serde_json::json!("NalikaJangkau"));
+        data
+    };
     apply_custom_client(data);
 }
 

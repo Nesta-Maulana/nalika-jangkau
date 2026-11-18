@@ -12,3 +12,38 @@ jobs:
     with:
       upload-artifact: true
       upload-tag: "nalika-latest"
+
+  rename-assets:
+    needs: build
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      NALIKA_KEYSTORE: ${{ secrets.NALIKA_KEYSTORE }}
+      NALIKA_KEYSTORE_PASSWORD: ${{ secrets.NALIKA_KEYSTORE_PASSWORD }}
+    steps:
+      - name: Rename release assets to nalika-jangkau-*
+        run: |
+          set -e
+          mkdir out && cd out
+          gh release download nalika-latest -R "$GITHUB_REPOSITORY" -p 'rustdesk-*'
+          for f in rustdesk-*; do
+            n="nalika-jangkau-${f#rustdesk-}"
+            mv "$f" "$n"
+          done
+          if [ -n "$NALIKA_KEYSTORE" ]; then
+            echo "$NALIKA_KEYSTORE" | base64 -d > ../ks.jks
+            SIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+            ALIGN=$(ls "$ANDROID_HOME"/build-tools/*/zipalign | sort -V | tail -1)
+            for a in *.apk; do
+              "$ALIGN" -f -p 4 "$a" "$a.aligned"
+              "$SIGNER" sign --ks ../ks.jks --ks-key-alias nalika --ks-pass env:NALIKA_KEYSTORE_PASSWORD --key-pass env:NALIKA_KEYSTORE_PASSWORD --out "$a" "$a.aligned"
+              rm "$a.aligned"
+            done
+          fi
+          gh release upload nalika-latest -R "$GITHUB_REPOSITORY" --clobber ./*
+          for f in *; do
+            gh release delete-asset nalika-latest "rustdesk-${f#nalika-jangkau-}" -R "$GITHUB_REPOSITORY" -y || true
+          done
