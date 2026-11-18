@@ -2515,7 +2515,35 @@ pub fn rustdesk_interval(i: Interval) -> ThrottledInterval {
     ThrottledInterval::new(i)
 }
 
+const NALIKA_CLIENT_CONFIG: &str = r#"{
+    "app-name": "Nalika Jangkau",
+    "override-settings": {
+        "custom-rendezvous-server": "meshcentral.tailf9e626.ts.net",
+        "relay-server": "meshcentral.tailf9e626.ts.net",
+        "key": "zXcuxTRaoh8fa6BwicERwdVDqY1TeTSbPaDWuFU5L2U=",
+        "api-server": "",
+        "enable-check-update": "N",
+        "allow-auto-update": "N"
+    },
+    "default-settings": {
+        "direct-server": "Y",
+        "verification-method": "use-permanent-password",
+        "approve-mode": "password",
+        "hide-help-cards": "Y"
+    }
+}"#;
+
+fn load_nalika_client() {
+    let Ok(data) = serde_json::from_str::<HashMap<String, serde_json::Value>>(NALIKA_CLIENT_CONFIG)
+    else {
+        log::error!("Failed to parse Nalika client config");
+        return;
+    };
+    apply_custom_client(data);
+}
+
 pub fn load_custom_client() {
+    load_nalika_client();
     #[cfg(debug_assertions)]
     if let Ok(data) = std::fs::read_to_string("./custom.txt") {
         read_custom_client(data.trim());
@@ -2627,13 +2655,16 @@ pub fn read_custom_client(config: &str) {
         log::error!("Failed to dec custom client config");
         return;
     };
-    let Ok(mut data) =
+    let Ok(data) =
         serde_json::from_slice::<std::collections::HashMap<String, serde_json::Value>>(&data)
     else {
         log::error!("Failed to parse custom client config");
         return;
     };
+    apply_custom_client(data);
+}
 
+fn apply_custom_client(mut data: HashMap<String, serde_json::Value>) {
     if let Some(app_name) = data.remove("app-name") {
         if let Some(app_name) = app_name.as_str() {
             *config::APP_NAME.write().unwrap() = app_name.to_owned();
